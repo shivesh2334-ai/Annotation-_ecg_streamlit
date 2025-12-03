@@ -1,0 +1,11 @@
+# --- Core Data Processing and Visualization ---
+numpy
+pandas
+scipy
+plotly
+streamlit
+
+# --- Google Sheets Integration (Optional, but required for full functionality) ---
+gspread
+oauth2client
+
