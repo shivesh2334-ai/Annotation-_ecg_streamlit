@@ -187,8 +187,26 @@ def main():
 
         with save_col:
             st.subheader("Cloud Sync")
-            if st.button("📤 Save Data to Google Sheets (Simulated)"):
-                simulate_google_sheet_save(annotations_df)
+            if st.button("📤 Save Data to Google Sheets "):
+                # Real gspread implementation placeholder for app.py
+# (Only needed if you want to switch from simulation to live data write)
+# 
+from google.oauth2.service_account import Credentials
+import gspread
+# 
+# def save_to_google_sheet(df):
+#     # ... other code ...
+    SERVICE_ACCOUNT_FILE = 'service_account.json' 
+    SCOPES = ['[https://www.googleapis.com/auth/spreadsheets](https://www.googleapis.com/auth/spreadsheets)']
+    creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    gc = gspread.authorize(creds)
+    sh = gc.open("ECG Annotation Data") # <-- Target Sheet Name
+    worksheet = sh.worksheet("Annotations")
+#     
+#     # Clear and update sheet
+    worksheet.clear()
+    worksheet.update([df.columns.values.tolist()] + df.values.tolist())
+
 
 
 if __name__ == '__main__':
