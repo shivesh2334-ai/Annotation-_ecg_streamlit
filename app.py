@@ -1,14 +1,12 @@
-
-        
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
 from scipy.signal import find_peaks
 # --- LIBRARIES FOR GOOGLE SHEET CONNECTION ---
-# These are moved to the top for proper module initialization
 import gspread
 from google.oauth2.service_account import Credentials
+import json # Used to correctly parse the JSON credentials from st.secrets
 
 
 # --- 1. CORE ECG ANNOTATION LOGIC ---
@@ -16,16 +14,14 @@ from google.oauth2.service_account import Credentials
 def simulate_ecg_and_annotate(sampling_rate=200, duration=5):
     """
     Simulates a simplified ECG signal and attempts to detect key features.
-    Returns: DataFrame of annotations, Time series array, ECG signal array, R-peak indices
     """
     t = np.linspace(0, duration, sampling_rate * duration, endpoint=False)
     # A simple wave simulation
-    ecg_signal = np.sin(2 * np.pi * 1.2 * t) + 0.3 * np.random.randn(len(t))
+    ecg_signal = 0.8 * np.sin(2 * np.pi * 1.2 * t) + 0.3 * np.random.randn(len(t))
 
     r_peaks_indices, _ = find_peaks(ecg_signal, distance=int(sampling_rate * 0.5), height=0.5)
 
     if len(r_peaks_indices) < 2:
-        # Returning None, None, None, None if not enough beats are found
         return None, None, None, None
 
     annotations = []
@@ -76,44 +72,56 @@ def simulate_ecg_and_annotate(sampling_rate=200, duration=5):
     return pd.DataFrame(annotations), t, ecg_signal, r_peaks_indices
 
 
-# --- 2. LIVE GOOGLE SHEET CONNECTION ---
+# --- 2. LIVE GOOGLE SHEET CONNECTION (Uses st.secrets) ---
 
 def save_data_to_google_sheets_live(df):
-    """Attempts to connect and save the DataFrame to Google Sheets."""
+    """Connects and saves the DataFrame to Google Sheets using Streamlit Secrets."""
     if df is None or df.empty:
         st.warning("⚠️ No data to upload to Google Sheets.")
         return
 
-    SERVICE_ACCOUNT_FILE = 'service_account.json' # Make sure this file exists in your running directory
-    # CORRECTED Scope String
+    # --- 1. Load Credentials from Streamlit Secrets ---
+    try:
+        # Load the service account credentials from the secrets file
+        creds_json = st.secrets["gcp_service_account"]
+        # Convert the private_key string (with escaped newlines) back to a proper key
+        creds_json['private_key'] = creds_json['private_key'].replace('\\n', '\n') 
+        
+        creds = Credentials.from_service_account_info(creds_json)
+
+    except KeyError:
+        st.error("❌ Configuration Error: Streamlit secrets not found.")
+        st.caption("Please ensure you have configured your secrets file correctly under the key `gcp_service_account`.")
+        return
+    except Exception as e:
+        st.error(f"❌ Failed to load or parse credentials from secrets: {e}")
+        return
+
+    # --- 2. Connect to Google Sheets ---
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
     SPREADSHEET_NAME = "ECG Annotation Data"
     WORKSHEET_NAME = "Annotations"
 
     try:
-        # 1. Authenticate
-        creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-        gc = gspread.authorize(creds)
+        with st.spinner('Connecting to Google Sheets...'):
+            gc = gspread.authorize(creds)
+            
+            # Open the Sheet
+            sh = gc.open(SPREADSHEET_NAME) 
+            worksheet = sh.worksheet(WORKSHEET_NAME)
+            
+            # 3. Clear and Update
+            worksheet.clear()
+            worksheet.update([df.columns.values.tolist()] + df.values.tolist())
         
-        # 2. Open the Sheet
-        sh = gc.open(SPREADSHEET_NAME) 
-        worksheet = sh.worksheet(WORKSHEET_NAME)
-        
-        # 3. Clear and Update
-        worksheet.clear()
-        worksheet.update([df.columns.values.tolist()] + df.values.tolist())
-        
-        st.success(f"☁️ **Success!** Data uploaded to Google Sheet: {SPREADSHEET_NAME} in worksheet {WORKSHEET_NAME}.")
-        st.caption(f"Sheet URL: {sh.url}")
+        st.success(f"☁️ **Success!** Data uploaded to Google Sheet: {SPREADSHEET_NAME}.")
+        st.caption(f"View Data: {sh.url}")
 
-    except FileNotFoundError:
-        st.error(f"❌ Authentication Failed: Service account file '{SERVICE_ACCOUNT_FILE}' not found. Please check the path.")
-        st.caption("Ensure your JSON key file is in the correct location and named `service_account.json`.")
     except gspread.exceptions.SpreadsheetNotFound:
-        st.error(f"❌ Spreadsheet Not Found: Ensure the Google Sheet is named '{SPREADSHEET_NAME}' and the Service Account has 'Editor' access.")
+        st.error(f"❌ Spreadsheet Not Found: Ensure the Google Sheet is named '{SPREADSHEET_NAME}'.")
     except Exception as e:
         st.error(f"❌ An unexpected error occurred during Google Sheet sync: {e}")
-        st.caption("Check your network connection and ensure the Service Account email has been shared with the spreadsheet.")
+        st.caption("Verify that the Service Account email has 'Editor' access to the spreadsheet.")
 
 
 # --- 3. STREAMLIT UI/UX DESIGN ---
@@ -143,13 +151,12 @@ def main():
         st.markdown("---")
         st.markdown("© 2025 ECG Analyzer")
         
-    # Initialize DataFrame in session state to persist it after annotation run
+    # Initialize DataFrame in session state
     if 'annotations_df' not in st.session_state:
         st.session_state.annotations_df = pd.DataFrame() 
     
     # --- Main Content Area ---
     
-    # Check if run button was pressed
     if process_button:
         # 1. Run the simulation/annotation
         with st.spinner('Analyzing ECG signal...'):
@@ -159,7 +166,6 @@ def main():
 
         if annotations_df is None or annotations_df.empty:
             st.error("❌ Analysis failed: Could not detect enough beats for annotation.")
-            # Ensure all returns exit cleanly after error
             return 
 
         # --- A. Visualization Section ---
@@ -189,9 +195,7 @@ def main():
         
         st.markdown("---")
         
-        # Continue to show results if annotation succeeded
-    
-    # Display results if they exist in the session state (after running or on reload)
+    # Display results if they exist in the session state
     if not st.session_state.annotations_df.empty:
         annotations_df = st.session_state.annotations_df
         
@@ -206,15 +210,12 @@ def main():
 
         with col2:
             st.subheader("Summary Diagnosis")
-            # Calculate most frequent diagnosis
             mode_diagnosis = annotations_df['Diagnosis'].mode().iloc[0]
             st.metric(label="Overall Heart Rhythm", value=mode_diagnosis)
             
-            # Calculate average RR interval
             avg_rr = annotations_df['RR_Dur_s'].mean()
             st.metric(label="Average RR Interval", value=f"{avg_rr:.3f} s")
             
-            # Calculate Heart Rate (BPM = 60 / avg_rr)
             bpm = 60 / avg_rr
             st.metric(label="Estimated Heart Rate (BPM)", value=f"{bpm:.0f} bpm")
         
@@ -239,7 +240,6 @@ def main():
         with save_col:
             st.subheader("Cloud Sync")
             if st.button("📤 Save Data to Google Sheets "):
-                # Calling the dedicated function
                 save_data_to_google_sheets_live(annotations_df)
 
 
