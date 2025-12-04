@@ -6,7 +6,7 @@ from scipy.signal import find_peaks
 # --- LIBRARIES FOR GOOGLE SHEET CONNECTION ---
 import gspread
 from google.oauth2.service_account import Credentials
-import json # Used to correctly parse the JSON credentials from st.secrets
+import copy # Used to create a deep copy of the secrets
 
 
 # --- 1. CORE ECG ANNOTATION LOGIC ---
@@ -80,21 +80,26 @@ def save_data_to_google_sheets_live(df):
         st.warning("⚠️ No data to upload to Google Sheets.")
         return
 
-    # --- 1. Load Credentials from Streamlit Secrets ---
+    # --- 1. Load and Prepare Credentials from Streamlit Secrets ---
     try:
-        # Load the service account credentials from the secrets file
-        creds_json = st.secrets["gcp_service_account"]
-        # Convert the private_key string (with escaped newlines) back to a proper key
-        creds_json['private_key'] = creds_json['private_key'].replace('\\n', '\n') 
+        # Load the service account credentials dictionary from st.secrets
+        # CRITICAL FIX: Use copy.deepcopy() to create a writable dictionary object
+        creds_json = copy.deepcopy(st.secrets["gcp_service_account"])
+        
+        # Convert the private_key string (with escaped newlines \n) back to a proper key.
+        # This modification is now safe because we are editing a copy of the secrets.
+        if 'private_key' in creds_json and isinstance(creds_json['private_key'], str):
+            creds_json['private_key'] = creds_json['private_key'].replace('\\n', '\n') 
         
         creds = Credentials.from_service_account_info(creds_json)
 
     except KeyError:
-        st.error("❌ Configuration Error: Streamlit secrets not found.")
+        st.error("❌ Configuration Error: Streamlit secrets key `gcp_service_account` not found.")
         st.caption("Please ensure you have configured your secrets file correctly under the key `gcp_service_account`.")
         return
     except Exception as e:
         st.error(f"❌ Failed to load or parse credentials from secrets: {e}")
+        st.caption("Double-check the formatting of your JSON data, especially the private key.")
         return
 
     # --- 2. Connect to Google Sheets ---
@@ -106,7 +111,6 @@ def save_data_to_google_sheets_live(df):
         with st.spinner('Connecting to Google Sheets...'):
             gc = gspread.authorize(creds)
             
-            # Open the Sheet
             sh = gc.open(SPREADSHEET_NAME) 
             worksheet = sh.worksheet(WORKSHEET_NAME)
             
