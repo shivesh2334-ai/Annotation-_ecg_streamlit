@@ -1,0 +1,11 @@
+#Ignore python cache files
+pycache/
+*.pyc
+#Ignore environment variables and local development artifacts
+.env
+venv/
+.ipynb_checkpoints/
+--- STREAMLIT SECRETS/GSPREAD CREDENTIALS ---
+This is mandatory to prevent accidental commitment of API keys
+.streamlit/secrets.toml
+service_account.json
