@@ -1,20 +1,46 @@
-#❤️ Automated ECG Annotation and Analysis Platform
-​This project provides a Streamlit-based web interface for the automated annotation and analysis of Electrocardiogram (ECG) data. It simulates feature extraction (P, QRS, T waves and intervals) and securely saves the results to a Google Sheet using Streamlit Secrets.
-🚀 Getting Started
-Follow these steps to set up and run the application.
+# ECG Annotation Platform
 
-git clone [your_repo_url]
-cd [your_repo_name]
-pip install -r requirements.txt
-streamlit run app.py
-☁️ Secure Google Sheets Integration Setup (MANDATORY)
-To enable the "Save Data to Google Sheets" button, you MUST configure a Google Service Account and provide its credentials via Streamlit Secrets.
-Step A: Configure Google Service Account
-Create Google Sheet: Create a Google Sheet named ECG Annotation Data.
-Enable APIs: In the Google Cloud Console, ensure you have enabled the Google Sheets API and Google Drive API for your project.
-Create Key: Create a Service Account and download its JSON Key File (e.g., service-account-key.json).
-Step B: Share the Spreadsheet
-Open the JSON Key File and copy the value of the client_email key.
-Go to your ECG Annotation Data Google Sheet, click "Share", paste the Service Account email, and grant it "Editor" access.
-Step C: Configure Streamlit Secrets
-Instead of using the JSON file directly, you must flatten its contents into the Streamlit secrets system (.streamlit/secrets.toml).
+This is a Streamlit web application for basic ECG annotation and Google Sheets data cloud sync.
+
+## Local Development
+
+1. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+2. Place your Google Service Account credentials in `.streamlit/secrets.toml` as shown below.
+
+3. Run the app:
+   ```
+   streamlit run app.py
+   ```
+
+## Streamlit Cloud Deployment
+
+- Add the files as above.
+- Set up the Service Account secrets in `.streamlit/secrets.toml`.
+- Deploy via [share.streamlit.io](https://share.streamlit.io/).
+
+## Google Sheets Integration
+
+- Create a Google Sheet named **ECG Annotation Data**, with a worksheet/tab named **Annotations**.
+- Share the Google Sheet with your Service Account's email (found in your credentials file) with Editor access.
+
+## Required .streamlit/secrets.toml
+
+Put this in `.streamlit/secrets.toml` (fill with your actual credentials):
+
+```toml
+[gcp_service_account]
+type = "service_account"
+project_id = "YOUR_PROJECT_ID"
+private_key_id = "YOUR_PRIVATE_KEY_ID"
+private_key = "-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY\n-----END PRIVATE KEY-----\n"
+client_email = "YOUR_CLIENT_EMAIL"
+client_id = "YOUR_CLIENT_ID"
+auth_uri = "https://accounts.google.com/o/oauth2/auth"
+token_uri = "https://oauth2.googleapis.com/token"
+auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+client_x509_cert_url = "YOUR_CERT_URL"
+```
+See [Streamlit secrets documentation](https://docs.streamlit.io/knowledge-base/tutorials/databases/gsheets) for more.
