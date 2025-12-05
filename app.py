@@ -95,17 +95,41 @@ def save_data_to_google_sheets(df):
             "client_x509_cert_url": st.secrets["gcp_service_account"]["client_x509_cert_url"]
         }
         
-        # Fix the private key formatting - handle both cases
-        if 'private_key' in creds_dict:
-            # Replace literal \n with actual newlines
-            private_key = creds_dict['private_key']
-            if '\\n' in private_key:
-                private_key = private_key.replace('\\n', '\n')
-            # Ensure proper formatting
-            if not private_key.startswith('-----BEGIN'):
-                st.error("❌ Private key format error: Key should start with '-----BEGIN PRIVATE KEY-----'")
-                return
-            creds_dict['private_key'] = private_key
+        # Fix the private key formatting - handle multiple cases
+        private_key = creds_dict['private_key']
+        
+        # Debug: Show first and last 50 chars (safely)
+        st.info(f"🔍 Key starts with: {private_key[:50]}...")
+        st.info(f"🔍 Key ends with: ...{private_key[-50:]}")
+        
+        # Handle different escape scenarios
+        if '\\\\n' in private_key:  # Double escaped
+            private_key = private_key.replace('\\\\n', '\n')
+        elif '\\n' in private_key:  # Single escaped
+            private_key = private_key.replace('\\n', '\n')
+        
+        # Verify the key format
+        if not private_key.startswith('-----BEGIN PRIVATE KEY-----'):
+            st.error("❌ Private key must start with '-----BEGIN PRIVATE KEY-----'")
+            st.error(f"Current start: {private_key[:30]}")
+            with st.expander("💡 How to fix"):
+                st.markdown("""
+                1. Open your service account JSON file
+                2. Copy the ENTIRE `private_key` value (including quotes)
+                3. In secrets.toml, paste it exactly as: 
+                   ```
+                   private_key = "paste here"
+                   ```
+                4. Make sure you copy from `-----BEGIN PRIVATE KEY-----` to `-----END PRIVATE KEY-----`
+                """)
+            return
+        
+        if not private_key.strip().endswith('-----END PRIVATE KEY-----'):
+            st.error("❌ Private key must end with '-----END PRIVATE KEY-----'")
+            st.error(f"Current end: ...{private_key[-30:]}")
+            return
+        
+        creds_dict['private_key'] = private_key
         
         # Define scopes
         SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
@@ -131,6 +155,7 @@ Required keys in secrets.toml:
         return
     except Exception as e:
         st.error(f"❌ Failed to load credentials: {e}")
+        st.exception(e)  # Show full traceback
         return
 
     # Google Sheets settings
