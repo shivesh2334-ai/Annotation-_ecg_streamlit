@@ -1,9 +1,23 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
+# Secrets and credentials
+
+.secrets.toml
+*.secrets.toml
+secrets.toml
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+*-key.json
+service-account*.json
+credentials.json
+
+# Python
+
+**pycache**/
 *.py[cod]
 *$py.class
-
-# Distribution / packaging
+*.so
 .Python
 build/
 develop-eggs/
@@ -20,52 +34,46 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
-# PyInstaller
-*.manifest
-*.spec
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
-# Virtual environments
+MANIFEST
 venv/
 ENV/
 env/
 .venv
 
-# Streamlit
-.streamlit/secrets.toml
-.streamlit/config.toml
-
 # IDEs
+
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# OS
 .DS_Store
-Thumbs.db
 
-# Credentials
-*.json
-credentials.json
-service_account.json
+# Jupyter Notebook
+
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# Testing
+
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
 
 # Logs
-*.log
 
-# Environment variables
-.env
-.env.local
+*.log
+logs/
+
+# Temporary files
+
+*.tmp
+*.bak
+*.cache
+
+# OS specific
+
+Thumbs.db
+.DS_Store
