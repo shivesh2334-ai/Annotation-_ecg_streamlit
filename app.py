@@ -81,7 +81,6 @@ def save_data_to_google_sheets(df):
 
     try:
         # Load credentials from Streamlit secrets
-        # Create a mutable copy of the secrets
         creds_dict = {
             "type": st.secrets["gcp_service_account"]["type"],
             "project_id": st.secrets["gcp_service_account"]["project_id"],
@@ -95,12 +94,12 @@ def save_data_to_google_sheets(df):
             "client_x509_cert_url": st.secrets["gcp_service_account"]["client_x509_cert_url"]
         }
         
-        # Fix the private key formatting - handle multiple cases
-        private_key = creds_dict['private_key']
+        # Add universe_domain if present
+        if "universe_domain" in st.secrets["gcp_service_account"]:
+            creds_dict["universe_domain"] = st.secrets["gcp_service_account"]["universe_domain"]
         
-        # Debug: Show first and last 50 chars (safely)
-        st.info(f"🔍 Key starts with: {private_key[:50]}...")
-        st.info(f"🔍 Key ends with: ...{private_key[-50:]}")
+        # Fix the private key formatting
+        private_key = str(creds_dict['private_key'])
         
         # Handle different escape scenarios
         if '\\\\n' in private_key:  # Double escaped
@@ -108,27 +107,21 @@ def save_data_to_google_sheets(df):
         elif '\\n' in private_key:  # Single escaped
             private_key = private_key.replace('\\n', '\n')
         
-        # Verify the key format
+        # Clean up any extra whitespace but preserve internal structure
+        private_key = private_key.strip()
+        
+        # Verify format
         if not private_key.startswith('-----BEGIN PRIVATE KEY-----'):
-            st.error("❌ Private key must start with '-----BEGIN PRIVATE KEY-----'")
-            st.error(f"Current start: {private_key[:30]}")
-            with st.expander("💡 How to fix"):
-                st.markdown("""
-                1. Open your service account JSON file
-                2. Copy the ENTIRE `private_key` value (including quotes)
-                3. In secrets.toml, paste it exactly as: 
-                   ```
-                   private_key = "paste here"
-                   ```
-                4. Make sure you copy from `-----BEGIN PRIVATE KEY-----` to `-----END PRIVATE KEY-----`
-                """)
+            st.error("❌ Private key format error")
+            st.error(f"Starts with: {repr(private_key[:50])}")
             return
         
-        if not private_key.strip().endswith('-----END PRIVATE KEY-----'):
-            st.error("❌ Private key must end with '-----END PRIVATE KEY-----'")
-            st.error(f"Current end: ...{private_key[-30:]}")
+        if not private_key.endswith('-----END PRIVATE KEY-----'):
+            st.error("❌ Private key format error")
+            st.error(f"Ends with: {repr(private_key[-50:])}")
             return
         
+        # Update the key
         creds_dict['private_key'] = private_key
         
         # Define scopes
@@ -137,25 +130,18 @@ def save_data_to_google_sheets(df):
 
     except KeyError as e:
         st.error(f"❌ Configuration Error: Missing key in secrets: {e}")
-        st.info("💡 Please configure your secrets in `.streamlit/secrets.toml`")
-        with st.expander("📋 Show Required Keys"):
-            st.code("""
-Required keys in secrets.toml:
-- type
-- project_id
-- private_key_id
-- private_key
-- client_email
-- client_id
-- auth_uri
-- token_uri
-- auth_provider_x509_cert_url
-- client_x509_cert_url
-            """)
+        return
+    except ValueError as e:
+        st.error(f"❌ Invalid credentials format: {e}")
+        st.info("💡 The private key might be corrupted. Try:")
+        st.code("""
+1. Download a fresh JSON key from Google Cloud Console
+2. Run: python create_secrets.py
+3. Provide the new JSON file path
+        """)
         return
     except Exception as e:
         st.error(f"❌ Failed to load credentials: {e}")
-        st.exception(e)  # Show full traceback
         return
 
     # Google Sheets settings
